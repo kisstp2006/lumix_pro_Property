@@ -19,15 +19,15 @@ struct EditorPlugin : StudioApp::GUIPlugin {
 		}
 		ImGui::End();
 	}
-	
-	const char* getName() const override { return "myplugin"; }
+
+	const char* getName() const override { return "proproperty"; }
 
 	StudioApp& m_app;
 	float m_some_value = 0;
 };
 
 
-LUMIX_STUDIO_ENTRY(myplugin)
+LUMIX_STUDIO_ENTRY(proproperty)
 {
 	WorldEditor& editor = app.getWorldEditor();
 
