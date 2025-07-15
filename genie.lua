@@ -1,4 +1,4 @@
-project "myplugin"
+project "proproperty"
 	libType()
 	files { 
 		"src/**.c",
@@ -6,8 +6,8 @@ project "myplugin"
 		"src/**.h",
 		"genie.lua"
 	}
-	defines { "BUILDING_MYPLUGIN" }
+	defines { "BUILDING_PROPROPERTY" }
 	links { "engine" }
 	defaultConfigurations()
 
-linkPlugin("myplugin")
+linkPlugin("proproperty")

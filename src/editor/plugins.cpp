@@ -13,7 +13,7 @@ struct EditorPlugin : StudioApp::GUIPlugin {
 
 	void onGUI() override {
 		ImGui::SetNextWindowSize(ImVec2(200, 200), ImGuiCond_FirstUseEver);
-		if (ImGui::Begin("My plugin")) {
+		if (ImGui::Begin("Pro Property")) {
 			ImGui::TextUnformatted("Hello world");
 			ImGui::DragFloat("Some value", &m_some_value);
 		}
