@@ -18,7 +18,7 @@ struct MyModule : IModule {
 		, m_allocator(allocator)
 	{}
 
-	const char* getName() const override { return "myplugin"; }
+	const char* getName() const override { return "proproperty"; }
 
 	void serialize(struct OutputMemoryStream& serializer) override {
 		// save our module data
@@ -50,7 +50,7 @@ struct MyModule : IModule {
 struct MySystem : ISystem {
 	MySystem(Engine& engine) : m_engine(engine) {}
 
-	const char* getName() const override { return "myplugin"; }
+	const char* getName() const override { return "proproperty"; }
 	
 	void serialize(OutputMemoryStream& serializer) const override {}
 	bool deserialize(i32 version, InputMemoryStream& serializer) override {
@@ -70,7 +70,7 @@ struct MySystem : ISystem {
 };
 
 
-LUMIX_PLUGIN_ENTRY(myplugin)
+LUMIX_PLUGIN_ENTRY(proproperty)
 {
 	return LUMIX_NEW(engine.getAllocator(), MySystem)(engine);
 }
