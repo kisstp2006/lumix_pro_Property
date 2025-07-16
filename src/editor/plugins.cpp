@@ -161,20 +161,22 @@ struct EditorPlugin : StudioApp::GUIPlugin
 
 					ImRect kf_rect(ImVec2(x - 4, y - 4), ImVec2(x + 4, y + 4));
 
-					
-					if (ImGui::IsMouseHoveringRect(kf_rect.Min, kf_rect.Max) && ImGui::IsMouseClicked(0))
+					if (ImGui::IsMouseHoveringRect(kf_rect.Min, kf_rect.Max))
 					{
-						selected_keyframe = &kf;
-						dragging_keyframe = &kf;
+						if (ImGui::IsMouseHoveringRect(kf_rect.Min, kf_rect.Max) && ImGui::IsMouseClicked(0))
+						{
+							selected_keyframe = &kf;
+							dragging_keyframe = &kf;
 
-						
-						ImVec2 mouse_pos = ImGui::GetMousePos();
-						drag_offset_x = mouse_pos.x - x;
-					}
-					if (ImGui::IsMouseClicked(ImGuiMouseButton_Right))
-					{
-						selected_keyframe = &kf; // optional: kijelölés is legyen
-						ImGui::OpenPopup("KeyframeContextMenu");
+
+							ImVec2 mouse_pos = ImGui::GetMousePos();
+							drag_offset_x = mouse_pos.x - x;
+						}
+						if (ImGui::IsMouseClicked(ImGuiMouseButton_Right))
+						{
+							selected_keyframe = &kf; // optional: kijelölés is legyen
+							ImGui::OpenPopup("KeyframeContextMenu");
+						}
 					}
 				}
 
@@ -229,7 +231,7 @@ struct EditorPlugin : StudioApp::GUIPlugin
 								if (&kf == selected_keyframe)
 								{
 									track.keyframes.push_back(kf);
-									track.keyframes.back().frame += 5; // pl. kicsit odébb
+									track.keyframes.back().frame += 5;
 									break;
 								}
 							}
