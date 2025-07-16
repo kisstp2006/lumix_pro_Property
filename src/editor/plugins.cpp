@@ -6,6 +6,7 @@
 #include "imgui/imgui_internal.h"
 #include <string>
 #include <vector>
+#include <variant>
 
 using namespace Lumix;
 
@@ -17,7 +18,8 @@ struct EditorPlugin : StudioApp::GUIPlugin
 		, selected_keyframe(nullptr)
 	{
 		// Példa track adatok
-		tracks = {{"Position", {{10, 1.0f}, {30, 2.0f}, {50, 3.0f}}}, {"Rotation", {{20, 0.5f}, {51, 1.0f}}}};
+		tracks = {{"Position", {{10, Vec3(1, 2, 3)}, {20, Vec3(4, 5, 6)}}, Track::ValueType::Vec3},
+			{"Rotation", {{10, Quat(1, 0, 0, 0)}, {20, Quat(0, 1, 0, 0)}}, Track::ValueType::Quat}};
 	}
 
 	StudioApp& m_app;
@@ -25,13 +27,22 @@ struct EditorPlugin : StudioApp::GUIPlugin
 	struct Keyframe
 	{
 		int frame;
-		float value;
+		std::variant<float, Vec2, Vec3, Quat> value;
 	};
 
 	struct Track
 	{
 		std::string name;
 		std::vector<Keyframe> keyframes;
+
+		enum class ValueType
+		{
+			Float,
+			Vec2,
+			Vec3,
+			Quat
+		};
+		ValueType type;
 	};
 
 	std::vector<Track> tracks;
@@ -105,11 +116,29 @@ struct EditorPlugin : StudioApp::GUIPlugin
 			if (selected_keyframe)
 			{
 				ImGui::InputInt("Frame", &selected_keyframe->frame);
-				ImGui::InputFloat("Value", &selected_keyframe->value);
-			}
-			else
-			{
-				ImGui::Text("No keyframe selected");
+
+				std::visit(
+					[&](auto& val)
+					{
+						using T = std::decay_t<decltype(val)>;
+						if constexpr (std::is_same_v<T, float>)
+						{
+							ImGui::InputFloat("Value", &val);
+						}
+						else if constexpr (std::is_same_v<T, Vec2>)
+						{
+							ImGui::InputFloat2("Value", &val.x);
+						}
+						else if constexpr (std::is_same_v<T, Vec3>)
+						{
+							ImGui::InputFloat3("Value", &val.x);
+						}
+						else if constexpr (std::is_same_v<T, Quat>)
+						{
+							ImGui::InputFloat4("Value", &val.x);
+						}
+					},
+					selected_keyframe->value);
 			}
 		}
 		ImGui::End();
