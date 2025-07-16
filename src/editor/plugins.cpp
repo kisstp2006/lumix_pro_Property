@@ -19,12 +19,15 @@ struct EditorPlugin : StudioApp::GUIPlugin
 		, dragging_keyframe(nullptr)
 		, splitter_ratio(0.2f)
 		, splitter_active(false)
-		, currentFrame(20)
+		, currentFrame(50)
 		, selected_track(nullptr)
 	{
 		
-		tracks = {{"Track 1", {{10, Vec3(1, 2, 3)}, {20, Vec3(4, 5, 6)}}, Track::ValueType::Vec3},
-			{"Track2", {{10, Quat(1, 0, 0, 0)}, {20, Quat(0, 1, 0, 0)}}, Track::ValueType::Quat}};
+		tracks = {
+			{"Track 1", {{10, Vec3(1, 2, 3)}, {20, Vec3(4, 5, 6)}}, Track::ValueType::Vec3},
+			{"Track2", {{10, Quat(1, 0, 0, 0)}, {20, Quat(0, 1, 0, 0)}}, Track::ValueType::Quat},
+			{"Track3", {{10, int(1)}, {24, int(14)}}, Track::ValueType::Int}
+		};
 	}
 
 	StudioApp& m_app;
@@ -83,7 +86,7 @@ struct EditorPlugin : StudioApp::GUIPlugin
 
 			
 			float total_height = ImGui::GetContentRegionAvail().y;
-			float splitter_height = 8.0f; 
+			float splitter_height = 12.0f; 
 
 			
 			float timeline_height = total_height * splitter_ratio - splitter_height * 0.5f;
@@ -118,6 +121,8 @@ struct EditorPlugin : StudioApp::GUIPlugin
 			float short_line_height = 8.0f; 
 
 			
+
+
 			for (int f = 0; f <= frameCount; ++f)
 			{
 				float x = canvas_pos.x + 120 + f * frameWidth; 
@@ -142,6 +147,17 @@ struct EditorPlugin : StudioApp::GUIPlugin
 				ImVec2 text_pos = ImVec2(x + 2, canvas_pos.y + 2);
 				draw_list->AddText(text_pos, IM_COL32_WHITE, buf);
 			}
+
+			// Drawing the current frame line
+			draw_list->AddLine(ImVec2(canvas_pos.x + 120 + currentFrame * frameWidth, canvas_pos.y),
+				ImVec2(canvas_pos.x + 120 + currentFrame * frameWidth, canvas_pos.y + canvas_size.y),
+				player_line_color,
+				3);
+			draw_list->AddLine(ImVec2(canvas_pos.x + 120 + currentFrame * frameWidth, canvas_pos.y),
+				ImVec2(canvas_pos.x + 120 + currentFrame * frameWidth, canvas_pos.y + short_line_height),
+				player_line_color,
+				6);
+
 
 			
 			for (size_t t = 0; t < tracks.size(); ++t)
@@ -204,9 +220,7 @@ struct EditorPlugin : StudioApp::GUIPlugin
 				}
 			}
 
-			draw_list->AddLine(ImVec2(canvas_pos.x + 120 + currentFrame * frameWidth, canvas_pos.y),
-				ImVec2(canvas_pos.x + 120 + currentFrame * frameWidth, canvas_pos.y + short_line_height),
-				player_line_color);
+			
 
 			if (ImGui::BeginPopup("KeyframeContextMenu"))
 			{
@@ -253,7 +267,16 @@ struct EditorPlugin : StudioApp::GUIPlugin
 			ImGui::EndChild();
 			ImGui::PopStyleVar();
 
+			ImGui::Separator();
 			ImGui::Button("Play", ImVec2(100, 0));
+			ImGui::SameLine();
+			if (ImGui::Button("Back.", ImVec2(100, 0))) {
+				currentFrame = Lumix::clamp(0, currentFrame - 1, frameCount);
+			}
+			ImGui::SameLine();
+			if (ImGui::Button("Fov.", ImVec2(100, 0))) {
+				currentFrame = Lumix::clamp(0, currentFrame + 1, frameCount);
+			}
 			ImGui::SameLine();
 			ImGui::Button("Pause", ImVec2(100, 0));
 			ImGui::SameLine();
