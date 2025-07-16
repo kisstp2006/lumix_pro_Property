@@ -18,8 +18,8 @@ struct EditorPlugin : StudioApp::GUIPlugin
 		, selected_keyframe(nullptr)
 	{
 		// Példa track adatok
-		tracks = {{"Position", {{10, Vec3(1, 2, 3)}, {20, Vec3(4, 5, 6)}}, Track::ValueType::Vec3},
-			{"Rotation", {{10, Quat(1, 0, 0, 0)}, {20, Quat(0, 1, 0, 0)}}, Track::ValueType::Quat}};
+		tracks = {{"Track 1", {{10, Vec3(1, 2, 3)}, {20, Vec3(4, 5, 6)}}, Track::ValueType::Vec3},
+			{"Track2", {{10, Quat(1, 0, 0, 0)}, {20, Quat(0, 1, 0, 0)}}, Track::ValueType::Quat}};
 	}
 
 	StudioApp& m_app;
@@ -71,6 +71,8 @@ struct EditorPlugin : StudioApp::GUIPlugin
 			ImGui::Text("Keyframe Sequencer:");
 
 			float timeline_height = 200.0f;
+			float frameWidth = 5.0f;
+
 			ImVec2 timeline_size = ImVec2(0, timeline_height);
 
 			ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(10.0f, 10.0f));
@@ -85,10 +87,46 @@ struct EditorPlugin : StudioApp::GUIPlugin
 				canvas_pos, ImVec2(canvas_pos.x + canvas_size.x, canvas_pos.y + canvas_size.y), bg_col);
 
 			float trackHeight = 25.0f;
-			float frameWidth = 5.0f;
+
+			// --- Timeline Grid ---
+			ImU32 short_line_color = IM_COL32(80, 80, 80, 100); 
+			ImU32 long_line_color = IM_COL32(80, 80, 80, 255);	
+
+			
+			float short_line_height = 8.0f; 
+
+		
+			for (int f = 0; f <= frameCount; ++f)
+			{
+				float x = canvas_pos.x + 120 + f * frameWidth;
+
+				draw_list->AddLine(ImVec2(x, canvas_pos.y),		 
+					ImVec2(x, canvas_pos.y + short_line_height), 
+					short_line_color);
+			}
+
+			
+			int frame_spacing = 10;
+			for (int f = 0; f <= frameCount; f += frame_spacing)
+			{
+				float x = canvas_pos.x + 120 + f * frameWidth;
+
+				
+				draw_list->AddLine(ImVec2(x, canvas_pos.y), ImVec2(x, canvas_pos.y + timeline_height), long_line_color);
+
+				
+				char buf[16];
+				sprintf_s(buf, "%d", f);
+
+				
+				ImVec2 text_pos = ImVec2(x + 2, canvas_pos.y + 2);
+
+				draw_list->AddText(text_pos, IM_COL32_WHITE, buf);
+			}
 
 			for (size_t t = 0; t < tracks.size(); ++t)
 			{
+
 				float y = canvas_pos.y + t * trackHeight + trackHeight * 0.5f;
 
 				draw_list->AddText(ImVec2(canvas_pos.x + 5, y - 8), IM_COL32_WHITE, tracks[t].name.c_str());
@@ -144,8 +182,22 @@ struct EditorPlugin : StudioApp::GUIPlugin
 		ImGui::End();
 	}
 
+	Keyframe make_keyframe(int frame, Track::ValueType type)
+	{
+		switch (type)
+		{
+			case Track::ValueType::Float: return {frame, 0.0f};
+			case Track::ValueType::Vec2: return {frame, Vec2(0, 0)};
+			case Track::ValueType::Vec3: return {frame, Vec3(0, 0, 0)};
+			case Track::ValueType::Quat: return {frame, Quat(0, 0, 0, 1)};
+		}
+		ASSERT(false);
+		return {frame, 0.0f};
+	}
+
 	const char* getName() const override { return "proproperty"; }
 };
+
 
 LUMIX_STUDIO_ENTRY(proproperty)
 {
