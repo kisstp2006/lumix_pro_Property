@@ -3,6 +3,8 @@
 #include "editor/studio_app.h"
 #include "editor/world_editor.h"
 #include "imgui/imgui.h"
+#include "imgui/imgui_internal.h"
+#include <string>
 #include <vector>
 
 using namespace Lumix;
@@ -11,18 +13,31 @@ struct EditorPlugin : StudioApp::GUIPlugin
 {
 	EditorPlugin(StudioApp& app)
 		: m_app(app)
-		, animation_frame(0) // Initialize to 0
+		, frameCount(100)
+		, selected_keyframe(nullptr)
 	{
+		// Példa track adatok
+		tracks = {{"Position", {{10, 1.0f}, {30, 2.0f}, {50, 3.0f}}}, {"Rotation", {{20, 0.5f}, {51, 1.0f}}}};
 	}
 
 	StudioApp& m_app;
-	int animation_frame; // Member variable to persist between frames
 
-	std::vector<float> times;
-	std::vector<Vec3> positions;
-	std::vector<Quat> rotations;
-	std::vector<Vec3> scales;
-	std::vector<uint32_t> jointIndices;
+	struct Keyframe
+	{
+		int frame;
+		float value;
+	};
+
+	struct Track
+	{
+		std::string name;
+		std::vector<Keyframe> keyframes;
+	};
+
+	std::vector<Track> tracks;
+
+	Keyframe* selected_keyframe = nullptr;
+	int frameCount;
 
 	void onGUI() override
 	{
@@ -31,30 +46,71 @@ struct EditorPlugin : StudioApp::GUIPlugin
 		World& world = *editor.getWorld();
 
 		const char* entity_name = "No entity selected";
-
-		// Check if there are selected entities
 		if (!ents.empty())
 		{
 			entity_name = world.getEntityName(ents[0]);
 		}
 
-		ImGui::SetNextWindowSize(ImVec2(300, 200), ImGuiCond_FirstUseEver); // Wider window
+		ImGui::SetNextWindowSize(ImVec2(600, 400), ImGuiCond_FirstUseEver);
 		if (ImGui::Begin("Pro Property"))
 		{
 			ImGui::Text("Selected Entity: %s", entity_name);
-
-			// Show other info
-			if (!ents.empty())
-			{
-				ImGui::Text("Entity ID: %d", ents[0].index);
-				ImGui::Text("Selected entities: %d", ents.size());
-			}
-
 			ImGui::Separator();
 
-			// Label for input field
-			ImGui::Text("Animation Frame:");
-			ImGui::InputInt("##animation_frame", &animation_frame); // & operator to pass address
+			ImGui::Text("Keyframe Sequencer:");
+
+			float timeline_height = 200.0f;
+			ImVec2 timeline_size = ImVec2(0, timeline_height);
+
+			ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(10.0f, 10.0f));
+			ImGui::BeginChild("TimelineRegion", timeline_size, true);
+
+			ImDrawList* draw_list = ImGui::GetWindowDrawList();
+			ImVec2 canvas_pos = ImGui::GetCursorScreenPos();
+			ImVec2 canvas_size = timeline_size;
+
+			ImU32 bg_col = IM_COL32(40, 40, 40, 255);
+			draw_list->AddRectFilled(
+				canvas_pos, ImVec2(canvas_pos.x + canvas_size.x, canvas_pos.y + canvas_size.y), bg_col);
+
+			float trackHeight = 25.0f;
+			float frameWidth = 5.0f;
+
+			for (size_t t = 0; t < tracks.size(); ++t)
+			{
+				float y = canvas_pos.y + t * trackHeight + trackHeight * 0.5f;
+
+				draw_list->AddText(ImVec2(canvas_pos.x + 5, y - 8), IM_COL32_WHITE, tracks[t].name.c_str());
+
+				for (Keyframe& kf : tracks[t].keyframes)
+				{
+					float x = canvas_pos.x + 120 + kf.frame * frameWidth;
+
+					draw_list->AddCircleFilled(ImVec2(x, y), 4.0f, IM_COL32(255, 200, 0, 255));
+
+					ImRect kf_rect(ImVec2(x - 4, y - 4), ImVec2(x + 4, y + 4));
+					if (ImGui::IsMouseHoveringRect(kf_rect.Min, kf_rect.Max) && ImGui::IsMouseClicked(0))
+					{
+						selected_keyframe = &kf;
+					}
+				}
+			}
+
+			ImGui::EndChild();
+			ImGui::PopStyleVar();
+
+			ImGui::Separator();
+			ImGui::Text("Inspector");
+
+			if (selected_keyframe)
+			{
+				ImGui::InputInt("Frame", &selected_keyframe->frame);
+				ImGui::InputFloat("Value", &selected_keyframe->value);
+			}
+			else
+			{
+				ImGui::Text("No keyframe selected");
+			}
 		}
 		ImGui::End();
 	}
