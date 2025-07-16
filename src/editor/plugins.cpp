@@ -16,7 +16,10 @@ struct EditorPlugin : StudioApp::GUIPlugin
 		: m_app(app)
 		, frameCount(100)
 		, selected_keyframe(nullptr)
+		, dragging_keyframe(nullptr)
 	{
+
+		
 		// Példa track adatok
 		tracks = {{"Track 1", {{10, Vec3(1, 2, 3)}, {20, Vec3(4, 5, 6)}}, Track::ValueType::Vec3},
 			{"Track2", {{10, Quat(1, 0, 0, 0)}, {20, Quat(0, 1, 0, 0)}}, Track::ValueType::Quat}};
@@ -47,7 +50,9 @@ struct EditorPlugin : StudioApp::GUIPlugin
 
 	std::vector<Track> tracks;
 
-	Keyframe* selected_keyframe = nullptr;
+	Keyframe* selected_keyframe;
+	Keyframe* dragging_keyframe;
+	float drag_offset_x = 0.0f;   
 	int frameCount;
 
 	void onGUI() override
@@ -91,6 +96,8 @@ struct EditorPlugin : StudioApp::GUIPlugin
 			// --- Timeline Grid ---
 			ImU32 short_line_color = IM_COL32(80, 80, 80, 100); 
 			ImU32 long_line_color = IM_COL32(80, 80, 80, 255);	
+
+			
 
 			
 			float short_line_height = 8.0f; 
@@ -142,6 +149,40 @@ struct EditorPlugin : StudioApp::GUIPlugin
 					{
 						selected_keyframe = &kf;
 					}
+					
+					if (ImGui::IsMouseHoveringRect(kf_rect.Min, kf_rect.Max) && ImGui::IsMouseClicked(0))
+					{
+						selected_keyframe = &kf;
+
+						
+						dragging_keyframe = &kf;
+
+						
+						ImVec2 mouse_pos = ImGui::GetMousePos();
+						drag_offset_x = mouse_pos.x - x;
+					}
+				}
+				if (dragging_keyframe && ImGui::IsMouseDragging(0))
+				{
+					ImVec2 mouse_pos = ImGui::GetMousePos();
+					float timeline_x = mouse_pos.x - drag_offset_x;
+
+					
+					
+					float timeline_origin_x = canvas_pos.x + 120;
+
+					int new_frame = int((timeline_x - timeline_origin_x) / frameWidth + 0.5f);
+
+					
+					new_frame = Lumix::clamp(new_frame, 0, frameCount);
+
+					dragging_keyframe->frame = new_frame;
+				}
+
+				
+				if (dragging_keyframe && ImGui::IsMouseReleased(0))
+				{
+					dragging_keyframe = nullptr;
 				}
 			}
 
