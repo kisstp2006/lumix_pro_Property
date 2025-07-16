@@ -20,6 +20,7 @@ struct EditorPlugin : StudioApp::GUIPlugin
 		, splitter_ratio(0.2f)
 		, splitter_active(false)
 		, currentFrame(0)
+		, selected_track(nullptr)
 	{
 		
 		tracks = {{"Track 1", {{10, Vec3(1, 2, 3)}, {20, Vec3(4, 5, 6)}}, Track::ValueType::Vec3},
@@ -52,6 +53,7 @@ struct EditorPlugin : StudioApp::GUIPlugin
 	std::vector<Track> tracks;
 
 	Keyframe* selected_keyframe;
+	Track* selected_track;
 	Keyframe* dragging_keyframe;
 	float drag_offset_x = 0.0f;
 	int frameCount;
@@ -169,6 +171,11 @@ struct EditorPlugin : StudioApp::GUIPlugin
 						ImVec2 mouse_pos = ImGui::GetMousePos();
 						drag_offset_x = mouse_pos.x - x;
 					}
+					if (ImGui::IsMouseClicked(ImGuiMouseButton_Right))
+					{
+						selected_keyframe = &kf; // optional: kijelölés is legyen
+						ImGui::OpenPopup("KeyframeContextMenu");
+					}
 				}
 
 				
@@ -191,6 +198,48 @@ struct EditorPlugin : StudioApp::GUIPlugin
 					dragging_keyframe = nullptr;
 				}
 			}
+
+			if (ImGui::BeginPopup("KeyframeContextMenu"))
+			{
+				ImGui::Text("Keyframe options");
+				ImGui::Separator();
+
+				if (ImGui::MenuItem("Delete"))
+				{
+					// Példa: töröld a kijelölt keyframe-et
+					for (Track& track : tracks)
+					{
+						auto& keys = track.keyframes;
+						keys.erase(
+							std::remove_if(
+								keys.begin(), keys.end(), [&](const Keyframe& k) { return &k == selected_keyframe; }),
+							keys.end());
+					}
+					selected_keyframe = nullptr;
+				}
+
+				if (ImGui::MenuItem("Duplicate"))
+				{
+					if (selected_keyframe)
+					{
+						for (Track& track : tracks)
+						{
+							for (Keyframe& kf : track.keyframes)
+							{
+								if (&kf == selected_keyframe)
+								{
+									track.keyframes.push_back(kf);
+									track.keyframes.back().frame += 5; // pl. kicsit odébb
+									break;
+								}
+							}
+						}
+					}
+				}
+
+				ImGui::EndPopup();
+			}
+
 
 			ImGui::EndChild();
 			ImGui::PopStyleVar();
