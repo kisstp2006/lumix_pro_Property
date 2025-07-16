@@ -19,7 +19,7 @@ struct EditorPlugin : StudioApp::GUIPlugin
 		, dragging_keyframe(nullptr)
 		, splitter_ratio(0.2f)
 		, splitter_active(false)
-		, currentFrame(0)
+		, currentFrame(20)
 		, selected_track(nullptr)
 	{
 		
@@ -32,7 +32,7 @@ struct EditorPlugin : StudioApp::GUIPlugin
 	struct Keyframe
 	{
 		int frame;
-		std::variant<float, Vec2, Vec3, Quat> value;
+		std::variant < float, int,Vec2, Vec3, Quat > value;
 	};
 
 	struct Track
@@ -43,6 +43,7 @@ struct EditorPlugin : StudioApp::GUIPlugin
 		enum class ValueType
 		{
 			Float,
+			Int,
 			Vec2,
 			Vec3,
 			Quat
@@ -112,6 +113,7 @@ struct EditorPlugin : StudioApp::GUIPlugin
 			
 			ImU32 short_line_color = IM_COL32(80, 80, 80, 100);
 			ImU32 long_line_color = IM_COL32(80, 80, 80, 255);	
+			ImU32 player_line_color = IM_COL32(255, 255, 255, 255);
 
 			float short_line_height = 8.0f; 
 
@@ -123,6 +125,7 @@ struct EditorPlugin : StudioApp::GUIPlugin
 				draw_list->AddLine(
 					ImVec2(x, canvas_pos.y), ImVec2(x, canvas_pos.y + short_line_height), short_line_color);
 			}
+
 
 			
 			int frame_spacing = 10;
@@ -200,6 +203,10 @@ struct EditorPlugin : StudioApp::GUIPlugin
 					dragging_keyframe = nullptr;
 				}
 			}
+
+			draw_list->AddLine(ImVec2(canvas_pos.x + 120 + currentFrame * frameWidth, canvas_pos.y),
+				ImVec2(canvas_pos.x + 120 + currentFrame * frameWidth, canvas_pos.y + short_line_height),
+				player_line_color);
 
 			if (ImGui::BeginPopup("KeyframeContextMenu"))
 			{
@@ -309,6 +316,10 @@ struct EditorPlugin : StudioApp::GUIPlugin
 						{
 							ImGui::InputFloat("Value", &val);
 						}
+						else if constexpr (std::is_same_v<T, int>)
+						{
+							ImGui::DragInt("Value", &val);
+						}
 						else if constexpr (std::is_same_v<T, Vec2>)
 						{
 							ImGui::InputFloat2("Value", &val.x);
@@ -340,6 +351,7 @@ struct EditorPlugin : StudioApp::GUIPlugin
 		switch (type)
 		{
 			case Track::ValueType::Float: return {frame, 0.0f};
+			case Track::ValueType::Int: return {frame, 0};
 			case Track::ValueType::Vec2: return {frame, Vec2(0, 0)};
 			case Track::ValueType::Vec3: return {frame, Vec3(0, 0, 0)};
 			case Track::ValueType::Quat: return {frame, Quat(0, 0, 0, 1)};
