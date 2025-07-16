@@ -2,66 +2,69 @@
 #include "core/allocator.h"
 #include "editor/studio_app.h"
 #include "editor/world_editor.h"
-
 #include "imgui/imgui.h"
-#include <vector> // Include necessary header for std::vector
+#include <vector>
 
 using namespace Lumix;
 
-/*
-// we dont need these for now, but we can implement them later if needed
-enum class PropertyType
+struct EditorPlugin : StudioApp::GUIPlugin
 {
-	FLOAT,
-	VEC3,
-	VEC4,
-	COLOR,
-	QUATERNION,
-	BOOL
-};
-*/
-struct Keyframe {
-    float time; // Define the structure for a keyframe
-};
+	EditorPlugin(StudioApp& app)
+		: m_app(app)
+		, animation_frame(0) // Initialize to 0
+	{
+	}
 
-struct EditorPlugin : StudioApp::GUIPlugin {
-	EditorPlugin(StudioApp& app) : m_app(app) {}
+	StudioApp& m_app;
+	int animation_frame; // Member variable to persist between frames
 
-	void onGUI() override {
-		ImGui::SetNextWindowSize(ImVec2(200, 200), ImGuiCond_FirstUseEver);
-		if (ImGui::Begin("Pro Property")) {
-			ImGui::TextUnformatted("Hello world");
-			ImDrawList* draw_list = ImGui::GetWindowDrawList();
-			ImVec2 canvas_pos = ImGui::GetCursorScreenPos();
-			ImVec2 canvas_size = ImGui::GetContentRegionAvail();
+	std::vector<float> times;
+	std::vector<Vec3> positions;
+	std::vector<Quat> rotations;
+	std::vector<Vec3> scales;
+	std::vector<uint32_t> jointIndices;
 
-			float total_time = 1.0f; // Assuming 1.0f represents the total duration of the timeline
+	void onGUI() override
+	{
+		WorldEditor& editor = m_app.getWorldEditor();
+		const Array<EntityRef>& ents = editor.getSelectedEntities();
+		World& world = *editor.getWorld();
 
-			// Keyframe drawing
-			for (auto& keyframe : keyframes) {
-				float x = canvas_pos.x + (keyframe.time / total_time) * canvas_size.x;
-				draw_list->AddCircleFilled(ImVec2(x, canvas_pos.y + 20), 5, IM_COL32(255, 0, 0, 255));
+		const char* entity_name = "No entity selected";
+
+		// Check if there are selected entities
+		if (!ents.empty())
+		{
+			entity_name = world.getEntityName(ents[0]);
+		}
+
+		ImGui::SetNextWindowSize(ImVec2(300, 200), ImGuiCond_FirstUseEver); // Wider window
+		if (ImGui::Begin("Pro Property"))
+		{
+			ImGui::Text("Selected Entity: %s", entity_name);
+
+			// Show other info
+			if (!ents.empty())
+			{
+				ImGui::Text("Entity ID: %d", ents[0].index);
+				ImGui::Text("Selected entities: %d", ents.size());
 			}
+
+			ImGui::Separator();
+
+			// Label for input field
+			ImGui::Text("Animation Frame:");
+			ImGui::InputInt("##animation_frame", &animation_frame); // & operator to pass address
 		}
 		ImGui::End();
 	}
 
 	const char* getName() const override { return "proproperty"; }
-
-	StudioApp& m_app;
-	float m_some_value = 0;
-
-	// Add a member variable to store keyframes
-	std::vector<Keyframe> keyframes = {
-		{0.2f}, {0.5f}, {0.8f} // Example keyframes with time values
-	};
 };
-
 
 LUMIX_STUDIO_ENTRY(proproperty)
 {
 	WorldEditor& editor = app.getWorldEditor();
-
 	auto* plugin = LUMIX_NEW(editor.getAllocator(), EditorPlugin)(app);
 	app.addPlugin(*plugin);
 	return nullptr;
