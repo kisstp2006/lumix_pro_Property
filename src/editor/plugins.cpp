@@ -25,13 +25,16 @@ struct EditorPlugin : StudioApp::GUIPlugin
 		, play_speed(24)
 		, time_accumulator(0.0f)
 		, is_scrubbing(false)
+		, timeline_offset(false)
+		, dragging_timeline(false)
+		, hovering_keyframe(false)
 		
 	{
 		
 		tracks = {
-			{"Track 1", {{10, Vec3(1, 2, 3)}, {20, Vec3(4, 5, 6)}}, Track::ValueType::Vec3},
-			{"Track2", {{10, Quat(1, 0, 0, 0)}, {20, Quat(0, 1, 0, 0)}}, Track::ValueType::Quat},
-			{"Track3", {{10, int(1)}, {24, int(14)}}, Track::ValueType::Int}
+			{"Object 1_Rotation", {{10, Vec3(1, 2, 3)}, {20, Vec3(4, 5, 6)}}, Track::ValueType::Vec3},
+			{"Object 1_Transform", {{10, Quat(1, 0, 0, 0)}, {20, Quat(0, 1, 0, 0)}}, Track::ValueType::Quat},
+			{"Object 3_Intensity", {{10, int(1)}, {24, int(14)}}, Track::ValueType::Int}
 		};
 	}
 
@@ -71,17 +74,24 @@ struct EditorPlugin : StudioApp::GUIPlugin
 	int play_speed;
 	float time_accumulator;
 	bool is_scrubbing;
+	float timeline_offset; // Horizontal panning offset in pixels
+	float zoom = 1.0f;    
+	bool dragging_timeline;
+	bool hovering_keyframe;
 
 
 	float splitter_ratio;
 	bool splitter_active;
+
+
+
+	// Fixed onGUI() method section with zoom and pan functionality
 
 	void onGUI() override
 	{
 		WorldEditor& editor = m_app.getWorldEditor();
 		const Array<EntityRef>& ents = editor.getSelectedEntities();
 		World& world = *editor.getWorld();
-
 
 		if (playing)
 		{
@@ -94,7 +104,7 @@ struct EditorPlugin : StudioApp::GUIPlugin
 			if (currentFrame > frameCount)
 			{
 				currentFrame = frameCount;
-				playing = false; // optional: stop at the end
+				playing = false;
 			}
 		}
 
@@ -110,86 +120,162 @@ struct EditorPlugin : StudioApp::GUIPlugin
 			ImGui::Text("Selected Entity: %s", entity_name);
 			ImGui::Separator();
 
-			
 			float total_height = ImGui::GetContentRegionAvail().y;
-			float splitter_height = 12.0f; 
-
-			
+			float splitter_height = 12.0f;
 			float timeline_height = total_height * splitter_ratio - splitter_height * 0.5f;
 			float inspector_height = total_height * (1.0f - splitter_ratio) - splitter_height * 0.5f;
 
 			ImGui::Text("Keyframe Sequencer:");
 
-			float frameWidth = 5.0f; 
+			float base_frame_width = 5.0f;
+			float frame_width = base_frame_width * zoom; // Apply zoom
 
-			
 			ImVec2 timeline_size = ImVec2(0, timeline_height);
 			ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(10.0f, 10.0f));
 			ImGui::BeginChild("TimelineRegion", timeline_size, true);
 
-			
 			ImDrawList* draw_list = ImGui::GetWindowDrawList();
 			ImVec2 canvas_pos = ImGui::GetCursorScreenPos();
 			ImVec2 canvas_size = ImGui::GetContentRegionAvail();
 
-			float current_x = canvas_pos.x + 120 + currentFrame * frameWidth;
-			ImVec2 current_frame_pos_min(current_x - 4, canvas_pos.y);
-			ImVec2 current_frame_pos_max(current_x + 4, canvas_pos.y + canvas_size.y);
+			float track_labels_width = 120.0f;
+			float timeline_start_x = canvas_pos.x + track_labels_width; // Define timeline start position
 
+			// ZOOM HANDLING - Ctrl + mouse wheel
+			if (ImGui::IsWindowHovered() && ImGui::GetIO().KeyCtrl)
+			{
+				float wheel = ImGui::GetIO().MouseWheel;
+				if (wheel != 0.0f)
+				{
+					ImVec2 mouse_pos = ImGui::GetMousePos();
+					float mouse_timeline_x = mouse_pos.x - timeline_start_x;
 
-			
+					// Calculate which frame is under the mouse cursor before zoom
+					float old_frame_width = base_frame_width * zoom;
+					float frame_under_mouse = (mouse_timeline_x - timeline_offset) / old_frame_width;
+
+					// Apply zoom
+					float old_zoom = zoom;
+					zoom += wheel * 0.1f;
+					zoom = Lumix::clamp(zoom, 0.1f, 10.0f);
+
+					// Calculate new frame width
+					float new_frame_width = base_frame_width * zoom;
+
+					// Adjust timeline_offset so the same frame stays under the mouse
+					timeline_offset = mouse_timeline_x - frame_under_mouse * new_frame_width;
+				}
+			}
+
+			// PAN HANDLING - Middle mouse button
+			if (ImGui::IsWindowHovered() && ImGui::IsMouseDown(ImGuiMouseButton_Middle))
+			{
+				if (!dragging_timeline) dragging_timeline = true;
+				timeline_offset += ImGui::GetIO().MouseDelta.x;
+			}
+			else
+			{
+				dragging_timeline = false;
+			}
+
+			// Timeline offset constraints
+			float max_timeline_width = frameCount * frame_width;
+			float visible_timeline_width = canvas_size.x - track_labels_width;
+			timeline_offset = Lumix::clamp(
+				timeline_offset, -max_timeline_width + visible_timeline_width * 0.5f, visible_timeline_width * 0.5f);
+
+			// Background
 			ImU32 bg_col = IM_COL32(40, 40, 40, 255);
 			draw_list->AddRectFilled(
 				canvas_pos, ImVec2(canvas_pos.x + canvas_size.x, canvas_pos.y + canvas_size.y), bg_col);
 
-			float trackHeight = 25.0f; 
-
-			
+			float trackHeight = 25.0f;
 			ImU32 short_line_color = IM_COL32(80, 80, 80, 100);
-			ImU32 long_line_color = IM_COL32(80, 80, 80, 255);	
+			ImU32 long_line_color = IM_COL32(80, 80, 80, 255);
 			ImU32 player_line_color = IM_COL32(255, 255, 255, 255);
+			float short_line_height = 8.0f;
 
-			float short_line_height = 8.0f; 
+			// Calculate visible frame range for optimization
+			timeline_start_x = canvas_pos.x + track_labels_width;
+			float visible_start_frame = (-timeline_offset) / frame_width;
+			float visible_end_frame = (-timeline_offset + canvas_size.x - track_labels_width) / frame_width;
 
-			
+			int start_frame = Lumix::maximum(0, int(visible_start_frame) - 1);
+			int end_frame = Lumix::minimum(frameCount, int(visible_end_frame) + 1);
 
-
-			for (int f = 0; f <= frameCount; ++f)
+			// Short lines at every frame (only draw visible ones)
+			if (zoom > 0.5f) // Only show short lines when zoomed in enough
 			{
-				float x = canvas_pos.x + 120 + f * frameWidth; 
+				for (int f = start_frame; f <= end_frame; ++f)
+				{
+					float x = timeline_start_x + f * frame_width + timeline_offset;
 
-				draw_list->AddLine(
-					ImVec2(x, canvas_pos.y), ImVec2(x, canvas_pos.y + short_line_height), short_line_color);
+					if (x >= timeline_start_x && x <= canvas_pos.x + canvas_size.x)
+					{
+						draw_list->AddLine(
+							ImVec2(x, canvas_pos.y), ImVec2(x, canvas_pos.y + short_line_height), short_line_color);
+					}
+				}
 			}
 
+			// Long lines and frame numbers with adaptive spacing
+			int base_spacing = 10;
+			if (zoom < 0.5f)
+				base_spacing = 50;
+			else if (zoom < 1.0f)
+				base_spacing = 20;
+			else if (zoom > 3.0f)
+				base_spacing = 5;
 
-			
-			int frame_spacing = 10;
+			int frame_spacing = base_spacing;
+
+			// Ensure spacing is reasonable
+			while (frame_spacing * frame_width < 30.0f && frame_spacing < frameCount / 4)
+			{
+				frame_spacing *= 2;
+			}
+
+			// Draw major frame lines and numbers
 			for (int f = 0; f <= frameCount; f += frame_spacing)
 			{
-				float x = canvas_pos.x + 120 + f * frameWidth;
+				float x = timeline_start_x + f * frame_width + timeline_offset;
 
-				
-				draw_list->AddLine(ImVec2(x, canvas_pos.y), ImVec2(x, canvas_pos.y + canvas_size.y), long_line_color);
+				if (x >= timeline_start_x - 50 && x <= canvas_pos.x + canvas_size.x + 50)
+				{
+					draw_list->AddLine(
+						ImVec2(x, canvas_pos.y), ImVec2(x, canvas_pos.y + canvas_size.y), long_line_color);
 
-				
-				char buf[16];
-				sprintf_s(buf, "%d", f);
-				ImVec2 text_pos = ImVec2(x + 2, canvas_pos.y + 2);
-				draw_list->AddText(text_pos, IM_COL32_WHITE, buf);
+					// Only draw frame number if there's enough space
+					if (frame_spacing * frame_width > 25.0f)
+					{
+						char buf[16];
+						sprintf_s(buf, "%d", f);
+						ImVec2 text_pos = ImVec2(x + 2, canvas_pos.y + 2);
+						draw_list->AddText(text_pos, IM_COL32_WHITE, buf);
+					}
+				}
 			}
 
+			// Current frame line (only in timeline area)
+			float current_frame_x = timeline_start_x + currentFrame * frame_width + timeline_offset;
+			if (current_frame_x >= timeline_start_x - 10 && current_frame_x <= canvas_pos.x + canvas_size.x + 10)
+			{
+				// Only draw the line in the timeline area (from timeline_start_x down)
+				draw_list->AddLine(ImVec2(current_frame_x, canvas_pos.y),
+					ImVec2(current_frame_x, canvas_pos.y + canvas_size.y),
+					player_line_color,
+					3);
 
-			// Drawing the current frame line
-			draw_list->AddLine(ImVec2(canvas_pos.x + 120 + currentFrame * frameWidth, canvas_pos.y),
-				ImVec2(canvas_pos.x + 120 + currentFrame * frameWidth, canvas_pos.y + canvas_size.y),
-				player_line_color,
-				3);
-			// Drawing the shorted current frame line
-			draw_list->AddLine(ImVec2(canvas_pos.x + 120 + currentFrame * frameWidth, canvas_pos.y),
-				ImVec2(canvas_pos.x + 120 + currentFrame * frameWidth, canvas_pos.y + short_line_height),
-				player_line_color,
-				6);
+				// Current frame line top (thicker) - also only in timeline area
+				draw_list->AddLine(ImVec2(current_frame_x, canvas_pos.y),
+					ImVec2(current_frame_x, canvas_pos.y + short_line_height),
+					player_line_color,
+					6);
+			}
+
+			// Scrubbing handling
+			ImVec2 current_frame_pos_min(current_frame_x - 4, canvas_pos.y);
+			ImVec2 current_frame_pos_max(current_frame_x + 4, canvas_pos.y + canvas_size.y);
 
 			if (ImGui::IsMouseHoveringRect(current_frame_pos_min, current_frame_pos_max) && ImGui::IsMouseClicked(0))
 			{
@@ -198,10 +284,10 @@ struct EditorPlugin : StudioApp::GUIPlugin
 
 			if (is_scrubbing)
 			{
-				playing = false; // Stop playing while scrubbing
+				playing = false;
 				ImVec2 mouse_pos = ImGui::GetMousePos();
-				float relative_mouse_x = mouse_pos.x - (canvas_pos.x + 120);
-				int new_frame = int(relative_mouse_x / frameWidth + 0.5f);
+				float relative_mouse_x = mouse_pos.x - timeline_start_x - timeline_offset;
+				int new_frame = int(relative_mouse_x / frame_width + 0.5f);
 				currentFrame = Lumix::clamp(new_frame, 0, frameCount);
 
 				if (!ImGui::IsMouseDown(0))
@@ -209,69 +295,74 @@ struct EditorPlugin : StudioApp::GUIPlugin
 					is_scrubbing = false;
 				}
 			}
-			ImVec2 timeline_area_min(canvas_pos.x + 120, canvas_pos.y);
-			ImVec2 timeline_area_max(canvas_pos.x + 120 + frameCount * frameWidth, canvas_pos.y + canvas_size.y);
 
-			if (ImGui::IsMouseHoveringRect(timeline_area_min, timeline_area_max) && ImGui::IsMouseDoubleClicked(0))
+			// Double click on timeline area
+			ImVec2 timeline_area_min(timeline_start_x, canvas_pos.y);
+			ImVec2 timeline_area_max(canvas_pos.x + canvas_size.x, canvas_pos.y + canvas_size.y);
+
+			if (ImGui::IsMouseHoveringRect(timeline_area_min, timeline_area_max) && ImGui::IsMouseDoubleClicked(0) &&
+				!is_scrubbing)
 			{
 				ImVec2 mouse_pos = ImGui::GetMousePos();
-				float relative_mouse_x = mouse_pos.x - (canvas_pos.x + 120);
-				int clicked_frame = int(relative_mouse_x / frameWidth + 0.5f);
+				float relative_mouse_x = mouse_pos.x - timeline_start_x - timeline_offset;
+				int clicked_frame = int(relative_mouse_x / frame_width + 0.5f);
 				currentFrame = Lumix::clamp(clicked_frame, 0, frameCount);
 			}
-			
+
+			// Draw tracks and keyframes
 			for (size_t t = 0; t < tracks.size(); ++t)
 			{
 				float y = canvas_pos.y + t * trackHeight + trackHeight * 0.5f;
 
-				
-				draw_list->AddText(ImVec2(canvas_pos.x + 5, y - 8), IM_COL32_WHITE, tracks[t].name.c_str());
-
-				
+				// Keyframes (draw first, so they appear behind track names)
 				for (Keyframe& kf : tracks[t].keyframes)
 				{
-					float x = canvas_pos.x + 120 + kf.frame * frameWidth;
+					float x = timeline_start_x + kf.frame * frame_width + timeline_offset;
 
-					
-					ImU32 kf_color = (selected_keyframe == &kf) ? IM_COL32(255, 255, 0, 255) :
-						IM_COL32(255, 200, 0, 255);
-
-					draw_list->AddCircleFilled(ImVec2(x, y), 4.0f, kf_color);
-
-					ImRect kf_rect(ImVec2(x - 4, y - 4), ImVec2(x + 4, y + 4));
-
-					if (ImGui::IsMouseHoveringRect(kf_rect.Min, kf_rect.Max))
+					// Only draw if visible
+					if (x >= timeline_start_x - 10 && x <= canvas_pos.x + canvas_size.x + 10)
 					{
-						if (ImGui::IsMouseHoveringRect(kf_rect.Min, kf_rect.Max) && ImGui::IsMouseClicked(0))
-						{
-							selected_keyframe = &kf;
-							dragging_keyframe = &kf;
+						ImU32 kf_color =
+							(selected_keyframe == &kf) ? IM_COL32(255, 255, 0, 255) : IM_COL32(255, 200, 0, 255);
 
-							ImVec2 mouse_pos = ImGui::GetMousePos();
-							drag_offset_x = mouse_pos.x - x;
-						}
-						if (ImGui::IsMouseClicked(ImGuiMouseButton_Right))
+						draw_list->AddCircleFilled(ImVec2(x, y), 4.0f, kf_color);
+
+						ImRect kf_rect(ImVec2(x - 4, y - 4), ImVec2(x + 4, y + 4));
+
+						if (ImGui::IsMouseHoveringRect(kf_rect.Min, kf_rect.Max))
 						{
-							selected_keyframe = &kf; // optional: kijelölés is legyen
-							ImGui::OpenPopup("KeyframeContextMenu");
+							hovering_keyframe = true;
+							if (ImGui::IsMouseClicked(0))
+							{
+								selected_keyframe = &kf;
+								dragging_keyframe = &kf;
+								selected_track = &tracks[t];
+
+								ImVec2 mouse_pos = ImGui::GetMousePos();
+								drag_offset_x = mouse_pos.x - x;
+							}
+							if (ImGui::IsMouseClicked(ImGuiMouseButton_Right))
+							{
+								selected_keyframe = &kf;
+								selected_track = &tracks[t];
+								ImGui::OpenPopup("KeyframeContextMenu");
+							}
 						}
 					}
 				}
 
-
+				// Keyframe dragging
 				if (dragging_keyframe && ImGui::IsMouseDragging(0))
 				{
 					ImVec2 mouse_pos = ImGui::GetMousePos();
 					float timeline_x = mouse_pos.x - drag_offset_x;
-					float timeline_origin_x = canvas_pos.x + 120;
+					float timeline_origin_x = timeline_start_x + timeline_offset;
 
-
-					int new_frame = int((timeline_x - timeline_origin_x) / frameWidth + 0.5f);
+					int new_frame = int((timeline_x - timeline_origin_x) / frame_width + 0.5f);
 					new_frame = Lumix::clamp(new_frame, 0, frameCount);
 
 					dragging_keyframe->frame = new_frame;
 				}
-
 
 				if (dragging_keyframe && ImGui::IsMouseReleased(0))
 				{
@@ -279,8 +370,35 @@ struct EditorPlugin : StudioApp::GUIPlugin
 				}
 			}
 
+			// Draw track names LAST (so they appear on top of everything)
+			for (size_t t = 0; t < tracks.size(); ++t)
+			{
+				float y = canvas_pos.y + t * trackHeight + trackHeight * 0.5f;
 
+				// Track name background (full height of track)
+				ImVec2 text_pos = ImVec2(canvas_pos.x + 5, y - 8);
 
+				// Background rectangle behind track name (covers full track height)
+				ImU32 track_bg_color = IM_COL32(50, 50, 50, 255); // Darker background for better contrast
+				if (selected_track == &tracks[t])
+				{
+					track_bg_color = IM_COL32(70, 70, 110, 255); // Bluish background if selected
+				}
+
+				// Full track height background
+				ImVec2 bg_min = ImVec2(canvas_pos.x, canvas_pos.y + t * trackHeight);
+				ImVec2 bg_max = ImVec2(timeline_start_x, canvas_pos.y + (t + 1) * trackHeight);
+				draw_list->AddRectFilled(bg_min, bg_max, track_bg_color);
+
+				// Border around track name area
+				ImU32 border_color = IM_COL32(120, 120, 120, 255);
+				draw_list->AddRect(bg_min, bg_max, border_color);
+
+				// Track name text
+				draw_list->AddText(text_pos, IM_COL32_WHITE, tracks[t].name.c_str());
+			}
+
+			// Keyframe context menu
 			if (ImGui::BeginPopup("KeyframeContextMenu"))
 			{
 				ImGui::Text("Keyframe options");
@@ -288,7 +406,6 @@ struct EditorPlugin : StudioApp::GUIPlugin
 
 				if (ImGui::MenuItem("Delete"))
 				{
-					// Példa: töröld a kijelölt keyframe-et
 					for (Track& track : tracks)
 					{
 						auto& keys = track.keyframes;
@@ -302,34 +419,25 @@ struct EditorPlugin : StudioApp::GUIPlugin
 
 				if (ImGui::MenuItem("Duplicate"))
 				{
-					if (selected_keyframe)
+					if (selected_keyframe && selected_track)
 					{
-						for (Track& track : tracks)
-						{
-							for (Keyframe& kf : track.keyframes)
-							{
-								if (&kf == selected_keyframe)
-								{
-									track.keyframes.push_back(kf);
-									track.keyframes.back().frame += 5;
-									break;
-								}
-							}
-						}
+						Keyframe new_kf = *selected_keyframe;
+						new_kf.frame += 5;
+						selected_track->keyframes.push_back(new_kf);
 					}
 				}
 
 				ImGui::EndPopup();
 			}
 
-
 			ImGui::EndChild();
 			ImGui::PopStyleVar();
 
-
+			// Control buttons
 			ImGui::Separator();
 			ImGui::SameLine();
-			if (ImGui::Button("Back.", ImVec2(100, 0))) {
+			if (ImGui::Button("Back.", ImVec2(100, 0)))
+			{
 				currentFrame = Lumix::clamp(0, currentFrame - 1, frameCount);
 			}
 			ImGui::SameLine();
@@ -338,7 +446,8 @@ struct EditorPlugin : StudioApp::GUIPlugin
 				playing = true;
 			}
 			ImGui::SameLine();
-			if (ImGui::Button("Fov.", ImVec2(100, 0))) {
+			if (ImGui::Button("Fov.", ImVec2(100, 0)))
+			{
 				currentFrame = Lumix::clamp(0, currentFrame + 1, frameCount);
 			}
 			ImGui::SameLine();
@@ -353,35 +462,31 @@ struct EditorPlugin : StudioApp::GUIPlugin
 				currentFrame = 0;
 			}
 			ImGui::SameLine();
-			if (ImGui::Button("Start", ImVec2(100, 0))) {
+			if (ImGui::Button("Start", ImVec2(100, 0)))
+			{
 				currentFrame = 0;
 			}
 			ImGui::SameLine();
-			if(ImGui::Button("End", ImVec2(100, 0))){
+			if (ImGui::Button("End", ImVec2(100, 0)))
+			{
 				currentFrame = frameCount;
 			}
-			
+
+			// Splitter
 			ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.6f, 0.6f, 0.6f, 0.4f));
 			ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.7f, 0.7f, 0.7f, 1.0f));
 			ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.8f, 0.8f, 0.8f, 1.0f));
 
-			
 			ImGui::Button("##splitter", ImVec2(-1, splitter_height));
 
-			
 			if (ImGui::IsItemActive() || splitter_active)
 			{
 				splitter_active = true;
-
-				
 				float mouse_delta = ImGui::GetIO().MouseDelta.y;
 				splitter_ratio += mouse_delta / total_height;
-
-				
 				splitter_ratio = Lumix::clamp(splitter_ratio, 0.1f, 0.9f);
 			}
 
-			
 			if (ImGui::IsMouseReleased(0))
 			{
 				splitter_active = false;
@@ -389,23 +494,22 @@ struct EditorPlugin : StudioApp::GUIPlugin
 
 			ImGui::PopStyleColor(3);
 
-			
 			if (ImGui::IsItemHovered())
 			{
 				ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeNS);
 			}
 
-			
+			// Inspector
 			ImGui::BeginChild("Inspector", ImVec2(0, inspector_height), true);
 
 			ImGui::Text("Inspector");
+			ImGui::Text("Zoom: %.2f", zoom);
+			ImGui::Text("Timeline Offset: %.2f", timeline_offset);
 
-			
 			if (selected_keyframe)
 			{
 				ImGui::InputInt("Frame", &selected_keyframe->frame);
 
-				
 				std::visit(
 					[&](auto& val)
 					{
@@ -458,7 +562,7 @@ struct EditorPlugin : StudioApp::GUIPlugin
 		return {frame, 0.0f};
 	}
 
-	void SetRotation(Quat rot) {
+	void SetProperties(Quat rot) {
 
 	}
 	Quat GetRotation() 
