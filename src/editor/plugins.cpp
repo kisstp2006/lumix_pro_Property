@@ -209,6 +209,16 @@ struct EditorPlugin : StudioApp::GUIPlugin
 					is_scrubbing = false;
 				}
 			}
+			ImVec2 timeline_area_min(canvas_pos.x + 120, canvas_pos.y);
+			ImVec2 timeline_area_max(canvas_pos.x + 120 + frameCount * frameWidth, canvas_pos.y + canvas_size.y);
+
+			if (ImGui::IsMouseHoveringRect(timeline_area_min, timeline_area_max) && ImGui::IsMouseDoubleClicked(0))
+			{
+				ImVec2 mouse_pos = ImGui::GetMousePos();
+				float relative_mouse_x = mouse_pos.x - (canvas_pos.x + 120);
+				int clicked_frame = int(relative_mouse_x / frameWidth + 0.5f);
+				currentFrame = Lumix::clamp(clicked_frame, 0, frameCount);
+			}
 			
 			for (size_t t = 0; t < tracks.size(); ++t)
 			{
