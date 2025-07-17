@@ -82,6 +82,7 @@ struct EditorPlugin : StudioApp::GUIPlugin
 		const Array<EntityRef>& ents = editor.getSelectedEntities();
 		World& world = *editor.getWorld();
 
+
 		if (playing)
 		{
 			time_accumulator += ImGui::GetIO().DeltaTime;
@@ -130,6 +131,11 @@ struct EditorPlugin : StudioApp::GUIPlugin
 			ImDrawList* draw_list = ImGui::GetWindowDrawList();
 			ImVec2 canvas_pos = ImGui::GetCursorScreenPos();
 			ImVec2 canvas_size = ImGui::GetContentRegionAvail();
+
+			float current_x = canvas_pos.x + 120 + currentFrame * frameWidth;
+			ImVec2 current_frame_pos_min(current_x - 4, canvas_pos.y);
+			ImVec2 current_frame_pos_max(current_x + 4, canvas_pos.y + canvas_size.y);
+
 
 			
 			ImU32 bg_col = IM_COL32(40, 40, 40, 255);
@@ -185,7 +191,24 @@ struct EditorPlugin : StudioApp::GUIPlugin
 				player_line_color,
 				6);
 
+			if (ImGui::IsMouseHoveringRect(current_frame_pos_min, current_frame_pos_max) && ImGui::IsMouseClicked(0))
+			{
+				is_scrubbing = true;
+			}
 
+			if (is_scrubbing)
+			{
+				playing = false; // Stop playing while scrubbing
+				ImVec2 mouse_pos = ImGui::GetMousePos();
+				float relative_mouse_x = mouse_pos.x - (canvas_pos.x + 120);
+				int new_frame = int(relative_mouse_x / frameWidth + 0.5f);
+				currentFrame = Lumix::clamp(new_frame, 0, frameCount);
+
+				if (!ImGui::IsMouseDown(0))
+				{
+					is_scrubbing = false;
+				}
+			}
 			
 			for (size_t t = 0; t < tracks.size(); ++t)
 			{
