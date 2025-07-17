@@ -21,6 +21,11 @@ struct EditorPlugin : StudioApp::GUIPlugin
 		, splitter_active(false)
 		, currentFrame(50)
 		, selected_track(nullptr)
+		, playing(false)
+		, play_speed(24)
+		, time_accumulator(0.0f)
+		, is_scrubbing(false)
+		
 	{
 		
 		tracks = {
@@ -62,7 +67,12 @@ struct EditorPlugin : StudioApp::GUIPlugin
 	float drag_offset_x = 0.0f;
 	int frameCount;
 	int currentFrame;
-	
+	bool playing;
+	int play_speed;
+	float time_accumulator;
+	bool is_scrubbing;
+
+
 	float splitter_ratio;
 	bool splitter_active;
 
@@ -71,6 +81,21 @@ struct EditorPlugin : StudioApp::GUIPlugin
 		WorldEditor& editor = m_app.getWorldEditor();
 		const Array<EntityRef>& ents = editor.getSelectedEntities();
 		World& world = *editor.getWorld();
+
+		if (playing)
+		{
+			time_accumulator += ImGui::GetIO().DeltaTime;
+			while (time_accumulator > 1.0f / play_speed)
+			{
+				currentFrame++;
+				time_accumulator -= 1.0f / play_speed;
+			}
+			if (currentFrame > frameCount)
+			{
+				currentFrame = frameCount;
+				playing = false; // optional: stop at the end
+			}
+		}
 
 		const char* entity_name = "No entity selected";
 		if (!ents.empty())
@@ -148,11 +173,13 @@ struct EditorPlugin : StudioApp::GUIPlugin
 				draw_list->AddText(text_pos, IM_COL32_WHITE, buf);
 			}
 
+
 			// Drawing the current frame line
 			draw_list->AddLine(ImVec2(canvas_pos.x + 120 + currentFrame * frameWidth, canvas_pos.y),
 				ImVec2(canvas_pos.x + 120 + currentFrame * frameWidth, canvas_pos.y + canvas_size.y),
 				player_line_color,
 				3);
+			// Drawing the shorted current frame line
 			draw_list->AddLine(ImVec2(canvas_pos.x + 120 + currentFrame * frameWidth, canvas_pos.y),
 				ImVec2(canvas_pos.x + 120 + currentFrame * frameWidth, canvas_pos.y + short_line_height),
 				player_line_color,
@@ -173,8 +200,8 @@ struct EditorPlugin : StudioApp::GUIPlugin
 					float x = canvas_pos.x + 120 + kf.frame * frameWidth;
 
 					
-					ImU32 kf_color = (selected_keyframe == &kf) ? IM_COL32(255, 255, 0, 255) : 
-										 IM_COL32(255, 200, 0, 255); 
+					ImU32 kf_color = (selected_keyframe == &kf) ? IM_COL32(255, 255, 0, 255) :
+						IM_COL32(255, 200, 0, 255);
 
 					draw_list->AddCircleFilled(ImVec2(x, y), 4.0f, kf_color);
 
@@ -187,7 +214,6 @@ struct EditorPlugin : StudioApp::GUIPlugin
 							selected_keyframe = &kf;
 							dragging_keyframe = &kf;
 
-
 							ImVec2 mouse_pos = ImGui::GetMousePos();
 							drag_offset_x = mouse_pos.x - x;
 						}
@@ -199,28 +225,28 @@ struct EditorPlugin : StudioApp::GUIPlugin
 					}
 				}
 
-				
+
 				if (dragging_keyframe && ImGui::IsMouseDragging(0))
 				{
 					ImVec2 mouse_pos = ImGui::GetMousePos();
 					float timeline_x = mouse_pos.x - drag_offset_x;
 					float timeline_origin_x = canvas_pos.x + 120;
 
-					
+
 					int new_frame = int((timeline_x - timeline_origin_x) / frameWidth + 0.5f);
 					new_frame = Lumix::clamp(new_frame, 0, frameCount);
 
 					dragging_keyframe->frame = new_frame;
 				}
 
-				
+
 				if (dragging_keyframe && ImGui::IsMouseReleased(0))
 				{
 					dragging_keyframe = nullptr;
 				}
 			}
 
-			
+
 
 			if (ImGui::BeginPopup("KeyframeContextMenu"))
 			{
@@ -267,24 +293,40 @@ struct EditorPlugin : StudioApp::GUIPlugin
 			ImGui::EndChild();
 			ImGui::PopStyleVar();
 
+
 			ImGui::Separator();
-			ImGui::Button("Play", ImVec2(100, 0));
 			ImGui::SameLine();
 			if (ImGui::Button("Back.", ImVec2(100, 0))) {
 				currentFrame = Lumix::clamp(0, currentFrame - 1, frameCount);
+			}
+			ImGui::SameLine();
+			if (ImGui::Button("Play", ImVec2(100, 0)))
+			{
+				playing = true;
 			}
 			ImGui::SameLine();
 			if (ImGui::Button("Fov.", ImVec2(100, 0))) {
 				currentFrame = Lumix::clamp(0, currentFrame + 1, frameCount);
 			}
 			ImGui::SameLine();
-			ImGui::Button("Pause", ImVec2(100, 0));
+			if (ImGui::Button("Pause", ImVec2(100, 0)))
+			{
+				playing = false;
+			}
 			ImGui::SameLine();
-			ImGui::Button("Stop", ImVec2(100, 0));
+			if (ImGui::Button("Stop", ImVec2(100, 0)))
+			{
+				playing = false;
+				currentFrame = 0;
+			}
 			ImGui::SameLine();
-			ImGui::Button("Start", ImVec2(100, 0));
+			if (ImGui::Button("Start", ImVec2(100, 0))) {
+				currentFrame = 0;
+			}
 			ImGui::SameLine();
-			ImGui::Button("End", ImVec2(100, 0));
+			if(ImGui::Button("End", ImVec2(100, 0))){
+				currentFrame = frameCount;
+			}
 			
 			ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.6f, 0.6f, 0.6f, 0.4f));
 			ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.7f, 0.7f, 0.7f, 1.0f));
@@ -383,13 +425,23 @@ struct EditorPlugin : StudioApp::GUIPlugin
 		return {frame, 0.0f};
 	}
 
+	void SetRotation(Quat rot) {
+
+	}
+	Quat GetRotation() 
+	{ 
+		return Quat(0, 0, 0, 0); 
+	}
+
 	const char* getName() const override { return "proproperty"; }
 };
 
 LUMIX_STUDIO_ENTRY(proproperty)
 {
+
 	WorldEditor& editor = app.getWorldEditor();
 	auto* plugin = LUMIX_NEW(editor.getAllocator(), EditorPlugin)(app);
 	app.addPlugin(*plugin);
 	return nullptr;
+
 }
